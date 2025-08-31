@@ -8,7 +8,10 @@
     "dev": "prisma generate && next dev",
     "build": "prisma generate && prisma db push && prisma db seed && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:dev": "prisma migrate dev && npm run post-migrate",
+    "migrate:deploy": "prisma migrate deploy && npm run post-migrate",
+    "post-migrate": "psql $POSTGRES_URL_NON_POOLING -f prisma/post-migration-setup.sql"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

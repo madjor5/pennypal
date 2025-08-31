@@ -11,10 +11,136 @@ datasource db {
   directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
 }
 
-model users {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  image     String
-  createdAt DateTime @default(now())
+// Enums
+enum AccountType {
+  checking
+  savings
+  credit_card
+  loan
+  budget
+  investment
 }
+
+enum TxnStatus {
+  pending
+  booked
+  cancelled
+  reversed
+}
+
+enum TxnDirection {
+  debit
+  credit
+}
+
+// MODELS
+
+model Customer {
+  id         String       @id @default(uuid())
+  externalRef String?
+  createdAt  DateTime     @default(now())
+
+  pii        CustomerPII?
+  accounts   Account[]
+
+  @@map("customer")
+}
+
+model CustomerPII {
+  customerId String     @id @map("customer_id")
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  fullName   String
+  email      String     @unique // bliver konverteret til CITEXT via SQL i migration
+  countryCode String?   @db.Char(2)
+  city       String?
+  consentJson Json      @default("{}")
+  updatedAt  DateTime   @default(now())
+
+  @@map("customer_pii")
+}
+
+model Account {
+  id                  String      @id @default(uuid())
+  customerId          String
+  customer            Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  provider            String?
+  providerAccountId   String?
+  name                String
+  type                AccountType
+  currencyCode        String      @db.Char(3)
+  iban                String?
+  status              String      @default("active")
+  openedAt            DateTime?
+  closedAt            DateTime?
+
+  transactions        Transaction[]
+
+  @@unique([customerId, provider, providerAccountId])
+  @@index([customerId])
+  @@map("account")
+}
+
+model Transaction {
+  id                String        @id @default(uuid())
+  accountId         String
+  account           Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  bookedAt          DateTime
+  valueDate         DateTime?
+  direction         TxnDirection
+  amountMinor       Int
+  currencyCode      String        @db.Char(3)
+
+  description       String?
+  merchantName      String?
+  merchantMcc       Int?
+  counterpartyIban  String?
+  counterpartyName  String?
+
+  categoryId        String?
+  status            TxnStatus     @default(booked)
+  isInternalTransfer Boolean      @default(false)
+  transferGroup     String?
+  providerTxnId     String?
+
+  raw               Json          @default("{}")
+  // searchText: generated column tilføjes via SQL migration
+  // embedding: pgvector-kolonne (Unsupported i Prisma)
+  searchText        String?       @map("search_text")
+  // embedding         Unsupported("vector(1536)")?  // Will be added via SQL migration
+
+  receiptItems      ReceiptItem[]
+
+  @@index([accountId, bookedAt(sort: Desc)])
+  @@index([status])
+  // Partiell unique (account_id, provider_txn_id) WHERE provider_txn_id IS NOT NULL -> via SQL migration
+  @@map("transaction")
+}
+
+model ReceiptItem {
+  id              String        @id @default(uuid())
+  transactionId   String
+  transaction     Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  lineNo          Int
+  sku             String?
+  description     String
+  qty             Decimal       @db.Decimal(12, 3) @default(1)
+  unitPriceMinor  Int
+  totalMinor      Int
+  vatRate         Decimal?      @db.Decimal(5, 2)
+  categoryId      String?
+
+  raw             Json          @default("{}")
+  // searchText: generated via SQL migration
+  // embedding: pgvector
+  searchText      String?       @map("search_text")
+  // embedding       Unsupported("vector(1536)")?  // Will be added via SQL migration
+
+  @@unique([transactionId, lineNo])
+  @@index([transactionId])
+  @@map("receipt_item")
+}
+
