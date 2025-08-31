@@ -1,6 +1,6 @@
 ---
-name: Vercel Postgres + Prisma Next.js Starter
-slug: postgres-prisma
+name: PennyPal
+slug: Chat with your finances
 description: Simple Next.js template that uses Vercel Postgres as the database and Prisma as the ORM.
 framework: Next.js
 useCase: Starter
