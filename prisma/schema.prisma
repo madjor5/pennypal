@@ -74,6 +74,7 @@ model Account {
   status              String      @default("active")
   openedAt            DateTime?
   closedAt            DateTime?
+  balanceMinor        Int         @default(0)
 
   transactions        Transaction[]
 
