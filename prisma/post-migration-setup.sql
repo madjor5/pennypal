@@ -76,3 +76,42 @@ USING (transaction_id IN (
   JOIN account a ON a.id = t.account_id
   WHERE a.customer_id = current_setting('app.current_customer_id')::uuid
 ));
+
+-- 8. Maintain account balances via triggers
+CREATE OR REPLACE FUNCTION update_account_balance() RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    INSERT INTO account_balance("accountId", "balanceMinor")
+    VALUES (NEW."accountId",
+            CASE WHEN NEW.direction = 'credit' THEN NEW."amountMinor" ELSE -NEW."amountMinor" END)
+    ON CONFLICT ("accountId") DO UPDATE
+      SET "balanceMinor" = account_balance."balanceMinor" +
+        (CASE WHEN NEW.direction = 'credit' THEN NEW."amountMinor" ELSE -NEW."amountMinor" END);
+    RETURN NEW;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE account_balance
+      SET "balanceMinor" = "balanceMinor" -
+        (CASE WHEN OLD.direction = 'credit' THEN OLD."amountMinor" ELSE -OLD."amountMinor" END)
+      WHERE "accountId" = OLD."accountId";
+    RETURN OLD;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    UPDATE account_balance
+      SET "balanceMinor" = "balanceMinor" -
+        (CASE WHEN OLD.direction = 'credit' THEN OLD."amountMinor" ELSE -OLD."amountMinor" END)
+      WHERE "accountId" = OLD."accountId";
+    INSERT INTO account_balance("accountId", "balanceMinor")
+    VALUES (NEW."accountId",
+            CASE WHEN NEW.direction = 'credit' THEN NEW."amountMinor" ELSE -NEW."amountMinor" END)
+    ON CONFLICT ("accountId") DO UPDATE
+      SET "balanceMinor" = account_balance."balanceMinor" +
+        (CASE WHEN NEW.direction = 'credit' THEN NEW."amountMinor" ELSE -NEW."amountMinor" END);
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_update_account_balance ON "transaction";
+
+CREATE TRIGGER trg_update_account_balance
+AFTER INSERT OR UPDATE OR DELETE ON "transaction"
+FOR EACH ROW EXECUTE FUNCTION update_account_balance();

@@ -82,6 +82,14 @@ model Account {
   @@map("account")
 }
 
+model AccountBalance {
+  accountId    String   @id
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  balanceMinor Int      @default(0)
+
+  @@map("account_balance")
+}
+
 model Transaction {
   id                String        @id @default(uuid())
   accountId         String
