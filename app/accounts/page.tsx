@@ -1,18 +1,10 @@
-import prisma from '@/lib/prisma'
 import Link from 'next/link'
+import { getCustomerOverview } from '@/lib/customer'
   
 export const dynamic = 'force-dynamic'
 
 export default async function AccountsPage() {
-  const accounts = await prisma.account.findMany({
-    select: {
-      id: true,
-      name: true,
-      balanceMinor: true,
-      currencyCode: true,
-    },
-    orderBy: { name: 'asc' },
-  })
+  const accounts = await getCustomerOverview()
 
   return (
     <main className="p-6 mx-auto max-w-xl">
