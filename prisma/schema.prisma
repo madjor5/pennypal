@@ -94,6 +94,8 @@ model Transaction {
   amountMinor       Int
   currencyCode      String        @db.Char(3)
 
+  balanceAfterMinor Int           @default(0) @map("balance_after_minor")
+
   description       String?
   merchantName      String?
   merchantMcc       Int?

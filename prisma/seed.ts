@@ -425,6 +425,34 @@ async function createFamilyAndAccounts() {
   return { accounts };
 }
 
+// ---------- recompute balances ----------
+async function recomputeBalances() {
+  await prisma.$executeRaw`UPDATE account a SET "balanceMinor" = COALESCE((
+    SELECT SUM(CASE WHEN direction = 'credit' THEN "amountMinor" ELSE -"amountMinor" END)
+    FROM "transaction" t WHERE t."accountId" = a.id
+  ), 0)`;
+
+  await prisma.$executeRawUnsafe(`
+    WITH tx AS (
+      SELECT
+        t.id,
+        t."accountId",
+        t."bookedAt",
+        t.direction,
+        t."amountMinor",
+        SUM(CASE WHEN t.direction = 'credit' THEN t."amountMinor" ELSE -t."amountMinor" END)
+          OVER (PARTITION BY t."accountId" ORDER BY t."bookedAt" DESC, t.id DESC) AS running_after,
+        CASE WHEN t.direction = 'credit' THEN t."amountMinor" ELSE -t."amountMinor" END AS delta
+      FROM "transaction" t
+    )
+    UPDATE "transaction" AS t
+    SET balance_after_minor = a."balanceMinor" - (tx.running_after - tx.delta)
+    FROM tx
+    JOIN account a ON a.id = tx."accountId"
+    WHERE t.id = tx.id;
+  `);
+}
+
 // ---------- main ----------
 async function main() {
   console.log("🌱 Seeding family dataset (3 months, realistic REMA receipts)…");
@@ -444,6 +472,8 @@ async function main() {
   for (const m of months) {
     await monthSeed(m.getUTCFullYear(), m.getUTCMonth(), accounts);
   }
+
+  await recomputeBalances();
 
   console.log("✅ Seed complete");
 }
