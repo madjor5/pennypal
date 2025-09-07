@@ -427,28 +427,28 @@ async function createFamilyAndAccounts() {
 
 // ---------- recompute balances ----------
 async function recomputeBalances() {
-  await prisma.$executeRaw`UPDATE account a SET balance_minor = COALESCE((
-    SELECT SUM(CASE WHEN direction = 'credit' THEN amount_minor ELSE -amount_minor END)
-    FROM "transaction" t WHERE t.account_id = a.id
+  await prisma.$executeRaw`UPDATE account a SET "balanceMinor" = COALESCE((
+    SELECT SUM(CASE WHEN direction = 'credit' THEN "amountMinor" ELSE -"amountMinor" END)
+    FROM "transaction" t WHERE t."accountId" = a.id
   ), 0)`;
 
   await prisma.$executeRawUnsafe(`
     WITH tx AS (
       SELECT
         t.id,
-        t.account_id,
-        t.booked_at,
+        t."accountId",
+        t."bookedAt",
         t.direction,
-        t.amount_minor,
-        SUM(CASE WHEN t.direction = 'credit' THEN t.amount_minor ELSE -t.amount_minor END)
-          OVER (PARTITION BY t.account_id ORDER BY t.booked_at DESC, t.id DESC) AS running_after,
-        CASE WHEN t.direction = 'credit' THEN t.amount_minor ELSE -t.amount_minor END AS delta
+        t."amountMinor",
+        SUM(CASE WHEN t.direction = 'credit' THEN t."amountMinor" ELSE -t."amountMinor" END)
+          OVER (PARTITION BY t."accountId" ORDER BY t."bookedAt" DESC, t.id DESC) AS running_after,
+        CASE WHEN t.direction = 'credit' THEN t."amountMinor" ELSE -t."amountMinor" END AS delta
       FROM "transaction" t
     )
     UPDATE "transaction" AS t
-    SET balance_after_minor = a.balance_minor - (tx.running_after - tx.delta)
+    SET balance_after_minor = a."balanceMinor" - (tx.running_after - tx.delta)
     FROM tx
-    JOIN account a ON a.id = tx.account_id
+    JOIN account a ON a.id = tx."accountId"
     WHERE t.id = tx.id;
   `);
 }
