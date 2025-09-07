@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
-
+import Link from 'next/link'
+  
 export const dynamic = 'force-dynamic'
 
 export default async function AccountsPage() {
@@ -26,7 +27,7 @@ export default async function AccountsPage() {
         <tbody>
           {accounts.map((acc) => (
             <tr key={acc.id}>
-              <td className="py-2 border-b">{acc.name}</td>
+              <td className="py-2 border-b"><Link href={`/accounts/${acc.id}`}>{acc.name}</Link></td>
               <td className="py-2 border-b text-right">
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
